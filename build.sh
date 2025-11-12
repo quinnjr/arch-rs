@@ -62,8 +62,15 @@ log_info "Profile: $PROFILE_DIR"
 log_info "Work directory: $WORK_DIR"
 log_info "Output directory: $OUTPUT_DIR"
 
+# Verify profiledef.sh exists
+if [ ! -f "$PROFILE_DIR/profiledef.sh" ]; then
+    log_error "profiledef.sh not found in profile directory"
+    exit 1
+fi
+
 # Build the ISO
 log_info "Building ISO with mkarchiso..."
+log_info "Using profile directory: $PROFILE_DIR"
 if mkarchiso -v -w "$WORK_DIR" -o "$OUTPUT_DIR" "$PROFILE_DIR"; then
     log_info "✓ ISO build completed successfully!"
     log_info "ISO files are located in: $OUTPUT_DIR"

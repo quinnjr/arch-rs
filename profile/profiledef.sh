@@ -26,7 +26,8 @@ bootmodes=('bios.syslinux.mbr' 'bios.syslinux.eltorito' 'uefi-x64.systemd-boot.e
 arch="x86_64"
 
 # Pacman mirror to use during build
-pacman_mirror="https://mirror.rackspace.com/archlinux/\$repo/os/\$arch"
+# Note: This is optional - if not set, archiso will use system default
+# pacman_mirror="https://mirror.rackspace.com/archlinux/\$repo/os/\$arch"
 
 # Pacman packages to install
 pacman_packages=()
