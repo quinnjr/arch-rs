@@ -54,13 +54,13 @@ jobs:
               set -e
               # Update system
               pacman -Syu --noconfirm
-              
+
               # Install dependencies
               pacman -S --noconfirm archiso git
-              
+
               # Make scripts executable
               chmod +x build.sh profile/airootfs/root/*.sh scripts/*.sh 2>/dev/null || true
-              
+
               # Verify profile structure
               echo \"Verifying profile structure...\"
               if [ ! -f profile/profiledef.sh ]; then
@@ -72,10 +72,10 @@ jobs:
                 exit 1
               fi
               echo \"Profile structure verified\"
-              
+
               # Build ISO
               ./build.sh --clean
-              
+
               # Find ISO and rename it
               ISO_FILE=\$(find out -name '*.iso' -type f | head -1)
               if [ -z \"\$ISO_FILE\" ]; then
@@ -83,11 +83,11 @@ jobs:
                 ls -la out/ || true
                 exit 1
               fi
-              
+
               ISO_DIR=\$(dirname \"\$ISO_FILE\")
               NEW_NAME=\"${ISO_NAME}-${{ steps.version.outputs.version }}.iso\"
               NEW_PATH=\"\$ISO_DIR/\$NEW_NAME\"
-              
+
               cp \"\$ISO_FILE\" \"\$NEW_PATH\"
               echo \"ISO built: \$NEW_PATH\"
               ls -lh \"\$NEW_PATH\"
