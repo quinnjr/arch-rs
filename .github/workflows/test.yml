@@ -218,10 +218,10 @@ jobs:
           echo "✅ rust-utils.sh configured"
 
           # Check that eza is aliased to ls
-          if ! grep -q "alias ls='eza'" profile/airootfs/root/customize_airootfs.sh; then
-            echo "⚠️  Warning: eza may not be aliased to ls"
-          else
+          if grep "alias ls=" profile/airootfs/root/customize_airootfs.sh | grep -q "eza"; then
             echo "✅ eza aliased to ls"
+          else
+            echo "⚠️  Warning: eza may not be aliased to ls"
           fi
 
           # Check that wrapper scripts are created
@@ -229,6 +229,7 @@ jobs:
             echo "⚠️  Warning: ls wrapper for eza may not be created"
           else
             echo "✅ ls wrapper for eza configured"
+          fi
 
       - name: Validation Summary
         if: always()
