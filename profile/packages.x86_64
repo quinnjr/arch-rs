@@ -1,0 +1,62 @@
+# Base packages
+base
+linux
+linux-firmware
+
+# Bootloader
+grub
+
+# Network
+networkmanager
+wpa_supplicant
+wireless_tools
+netctl
+dialog
+
+# Filesystem
+dosfstools
+ntfs-3g
+
+# System utilities
+systemd
+systemd-sysvcompat
+util-linux
+which
+
+# Rust coreutils replacement
+uutils-coreutils
+
+# Rust-based utility replacements
+ripgrep          # Fast grep replacement
+fd               # Fast find replacement
+bat              # cat with syntax highlighting
+eza              # Modern ls replacement (successor to exa)
+procs            # Modern ps replacement
+bottom           # System monitor (top/htop replacement)
+dust             # du replacement with tree view
+zoxide           # Smart cd replacement
+starship         # Cross-shell prompt
+tealdeer         # Simplified man pages (tldr)
+sd               # Intuitive sed replacement
+tokei            # Code statistics
+hyperfine        # Benchmarking tool
+
+# Development tools (optional, can be removed)
+base-devel
+git
+
+# Shell
+bash
+zsh
+fish
+
+# Text editors
+nano
+vim
+
+# Archive tools
+p7zip
+unrar
+zip
+unzip
+

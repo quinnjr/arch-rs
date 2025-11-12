@@ -1,0 +1,10 @@
+[Trigger]
+Type = Package
+Operation = Install
+Target = coreutils
+
+[Action]
+Description = Replacing GNU coreutils with uutils-coreutils
+When = PreTransaction
+Exec = /usr/bin/pacman -Rns --noconfirm coreutils || true
+

@@ -1,0 +1,351 @@
+name: Test Build System
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'release/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run build system unit tests
+        id: unit-tests
+        run: |
+          chmod +x tests/build.test.sh
+          bash tests/build.test.sh
+        continue-on-error: false
+
+      - name: Test Results Summary
+        if: always()
+        run: |
+          echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ steps.unit-tests.outcome }}" == "success" ]; then
+            echo "✅ All unit tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ Some unit tests failed. Check the logs above." >> $GITHUB_STEP_SUMMARY
+          fi
+
+  validation:
+    name: Validation & Linting
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate script syntax
+        id: syntax
+        run: |
+          echo "Validating bash script syntax..."
+          FAILED=0
+          while IFS= read -r -d '' script; do
+            echo "Checking: $script"
+            if ! bash -n "$script" 2>&1; then
+              echo "❌ Syntax error in: $script"
+              FAILED=1
+            else
+              echo "✅ $script"
+            fi
+          done < <(find . -name "*.sh" -type f ! -path "./.git/*" ! -path "./work/*" ! -path "./out/*" ! -path "./build/*" -print0)
+
+          if [ $FAILED -eq 1 ]; then
+            exit 1
+          fi
+          echo "✅ All scripts have valid syntax"
+
+      - name: Check required files
+        id: files
+        run: |
+          echo "Checking required files..."
+          REQUIRED_FILES=(
+            "build.sh"
+            "profile/packages.x86_64"
+            "profile/pacman.conf"
+            "profile/profiledef.sh"
+            "profile/airootfs/root/customize_airootfs.sh"
+            "profile/airootfs/root/post-install.sh"
+            "profile/airootfs/root/.automated_script.sh"
+            "profile/airootfs/root/install-helper.sh"
+          )
+
+          MISSING=0
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$file" ]; then
+              echo "❌ Required file missing: $file"
+              MISSING=1
+            else
+              echo "✅ $file"
+            fi
+          done
+
+          if [ $MISSING -eq 1 ]; then
+            exit 1
+          fi
+          echo "✅ All required files present"
+
+      - name: Validate package configuration
+        id: packages
+        run: |
+          echo "Validating package configuration..."
+
+          # Check that uutils-coreutils is in packages list
+          if ! grep -q "uutils-coreutils" profile/packages.x86_64; then
+            echo "❌ uutils-coreutils not found in packages.x86_64"
+            exit 1
+          fi
+          echo "✅ uutils-coreutils in package list"
+
+          # Check that GNU coreutils is NOT in packages list
+          if grep -q "^coreutils$" profile/packages.x86_64; then
+            echo "❌ GNU coreutils should not be in packages.x86_64"
+            exit 1
+          fi
+          echo "✅ GNU coreutils not in package list"
+
+          # Check that all Rust utilities are listed
+          RUST_UTILS=("ripgrep" "fd" "bat" "eza" "procs" "bottom" "dust" "zoxide" "starship" "tealdeer" "sd" "tokei" "hyperfine")
+          MISSING_UTILS=0
+          for util in "${RUST_UTILS[@]}"; do
+            if ! grep -q "^${util}" profile/packages.x86_64; then
+              echo "⚠️  Warning: $util not found in packages.x86_64"
+              MISSING_UTILS=1
+            fi
+          done
+
+          if [ $MISSING_UTILS -eq 1 ]; then
+            echo "⚠️  Some Rust utilities may be missing from package list"
+          else
+            echo "✅ All Rust utilities in package list"
+          fi
+
+      - name: Validate profiledef.sh
+        id: profiledef
+        run: |
+          echo "Validating profiledef.sh..."
+
+          # Check that coreutils is excluded
+          if ! grep -A 5 "pacman_packages_exclude=(" profile/profiledef.sh | grep -q "coreutils"; then
+            echo "❌ coreutils not excluded in profiledef.sh"
+            exit 1
+          fi
+          echo "✅ coreutils excluded in profiledef.sh"
+
+          # Check that other GNU packages are excluded
+          GNU_PACKAGES=("grep" "findutils" "sed" "procps-ng")
+          for pkg in "${GNU_PACKAGES[@]}"; do
+            if ! grep -A 10 "pacman_packages_exclude=(" profile/profiledef.sh | grep -q "$pkg"; then
+              echo "⚠️  Warning: $pkg not excluded in profiledef.sh"
+            else
+              echo "✅ $pkg excluded in profiledef.sh"
+            fi
+          done
+
+      - name: Validate pacman.conf
+        id: pacman-conf
+        run: |
+          echo "Validating pacman.conf..."
+
+          # Check that IgnorePkg includes coreutils
+          if ! grep -q "^IgnorePkg.*coreutils" profile/pacman.conf; then
+            echo "❌ coreutils not in IgnorePkg in pacman.conf"
+            exit 1
+          fi
+          echo "✅ coreutils in IgnorePkg"
+
+          # Check that other GNU packages are in IgnorePkg
+          GNU_PACKAGES=("grep" "findutils" "sed" "procps-ng")
+          for pkg in "${GNU_PACKAGES[@]}"; do
+            if ! grep -q "^IgnorePkg.*${pkg}" profile/pacman.conf; then
+              echo "⚠️  Warning: $pkg not in IgnorePkg"
+            else
+              echo "✅ $pkg in IgnorePkg"
+            fi
+          done
+
+      - name: Check script permissions
+        id: permissions
+        run: |
+          echo "Checking script permissions..."
+          SCRIPTS=(
+            "build.sh"
+            "profile/airootfs/root/customize_airootfs.sh"
+            "profile/airootfs/root/post-install.sh"
+            "profile/airootfs/root/.automated_script.sh"
+            "profile/airootfs/root/install-helper.sh"
+            "tests/build.test.sh"
+          )
+
+          FAILED=0
+          for script in "${SCRIPTS[@]}"; do
+            if [ ! -x "$script" ]; then
+              echo "❌ Script not executable: $script"
+              FAILED=1
+            else
+              echo "✅ $script is executable"
+            fi
+          done
+
+          if [ $FAILED -eq 1 ]; then
+            exit 1
+          fi
+
+      - name: Validate aliases configuration
+        id: aliases
+        run: |
+          echo "Validating Rust utility aliases..."
+
+          # Check that rust-utils.sh is created in customize script
+          if ! grep -q "rust-utils.sh" profile/airootfs/root/customize_airootfs.sh; then
+            echo "❌ rust-utils.sh not created in customize_airootfs.sh"
+            exit 1
+          fi
+          echo "✅ rust-utils.sh configured"
+
+          # Check that eza is aliased to ls
+          if ! grep -q "alias ls='eza'" profile/airootfs/root/customize_airootfs.sh; then
+            echo "⚠️  Warning: eza may not be aliased to ls"
+          else
+            echo "✅ eza aliased to ls"
+          fi
+
+          # Check that wrapper scripts are created
+          if ! grep -q "create_rust_wrapper.*ls.*eza" profile/airootfs/root/customize_airootfs.sh; then
+            echo "⚠️  Warning: ls wrapper for eza may not be created"
+          else
+            echo "✅ ls wrapper for eza configured"
+
+      - name: Validation Summary
+        if: always()
+        run: |
+          echo "## Validation Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Check | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Script Syntax | ${{ steps.syntax.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Required Files | ${{ steps.files.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Package Config | ${{ steps.packages.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| profiledef.sh | ${{ steps.profiledef.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| pacman.conf | ${{ steps.pacman-conf.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Script Permissions | ${{ steps.permissions.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Aliases Config | ${{ steps.aliases.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [unit-tests, validation]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test build script dry-run
+        run: |
+          echo "Testing build script structure..."
+
+          # Check that build.sh exists and is executable
+          if [ ! -x "build.sh" ]; then
+            echo "❌ build.sh is not executable"
+            exit 1
+          fi
+
+          # Check that build.sh has required functions
+          if ! grep -q "log_info\|log_error" build.sh; then
+            echo "⚠️  Warning: build.sh may be missing logging functions"
+          fi
+
+          # Check that build.sh checks for root
+          if ! grep -q "EUID\|root" build.sh; then
+            echo "⚠️  Warning: build.sh may not check for root privileges"
+          fi
+
+          echo "✅ Build script structure validated"
+
+      - name: Test profile structure
+        run: |
+          echo "Testing profile structure..."
+
+          # Check profile directory structure
+          PROFILE_DIRS=(
+            "profile"
+            "profile/airootfs"
+            "profile/airootfs/etc"
+            "profile/airootfs/root"
+            "profile/efiboot"
+            "profile/syslinux"
+          )
+
+          for dir in "${PROFILE_DIRS[@]}"; do
+            if [ ! -d "$dir" ]; then
+              echo "❌ Directory missing: $dir"
+              exit 1
+            fi
+          done
+          echo "✅ Profile directory structure valid"
+
+      - name: Test configuration consistency
+        run: |
+          echo "Testing configuration consistency..."
+
+          # Check that excluded packages match between profiledef.sh and pacman.conf
+          EXCLUDED_PROFILEDEF=$(grep -A 10 "pacman_packages_exclude=(" profile/profiledef.sh | grep -oE '[a-z-]+' | grep -v "pacman_packages_exclude" | sort)
+          EXCLUDED_PACMAN=$(grep "^IgnorePkg" profile/pacman.conf | grep -oE '[a-z-]+' | grep -v "IgnorePkg" | sort)
+
+          echo "Excluded in profiledef.sh: $EXCLUDED_PROFILEDEF"
+          echo "Excluded in pacman.conf: $EXCLUDED_PACMAN"
+
+          # Basic consistency check
+          if [ -z "$EXCLUDED_PROFILEDEF" ] || [ -z "$EXCLUDED_PACMAN" ]; then
+            echo "⚠️  Warning: Exclusion lists may be empty"
+          else
+            echo "✅ Exclusion lists present in both files"
+          fi
+
+      - name: Integration Test Summary
+        if: always()
+        run: |
+          echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Integration tests completed" >> $GITHUB_STEP_SUMMARY
+
+  summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [unit-tests, validation, integration-tests]
+    if: always()
+
+    steps:
+      - name: Overall Test Summary
+        run: |
+          echo "## 🧪 Overall Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test Suite | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Validation | ${{ needs.validation.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration | ${{ needs.integration-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.unit-tests.result }}" == "success" ] && \
+             [ "${{ needs.validation.result }}" == "success" ] && \
+             [ "${{ needs.integration-tests.result }}" == "success" ]; then
+            echo "🎉 All tests passed!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "⚠️  Some tests failed. Please review the logs." >> $GITHUB_STEP_SUMMARY
+          fi
+

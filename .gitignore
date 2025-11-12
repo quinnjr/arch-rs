@@ -1,0 +1,26 @@
+# Build artifacts
+work/
+out/
+build/
+
+# GitHub Actions artifacts (keep structure but ignore contents)
+!.github/workflows/
+!.github/BRANCHING.md
+!.github/PULL_REQUEST_TEMPLATE.md
+!.github/ISSUE_TEMPLATE/
+
+# Temporary files
+*.tmp
+*.log
+*.swp
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.sublime-*
+

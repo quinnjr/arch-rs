@@ -1,0 +1,57 @@
+Copyright (c) 2024 ArchLinux ISO with Rust Utilities Contributors
+
+This build system and configuration files are provided under the MIT License.
+
+---
+
+## Third-Party Software Licenses
+
+This project builds an ISO that includes various third-party software packages.
+Each package maintains its own copyright and license. Below is a summary of
+major components:
+
+### ArchLinux Distribution
+- Copyright: ArchLinux Project and respective package maintainers
+- License: Various (GPL, MIT, BSD, etc.) - See individual package licenses
+- Website: https://www.archlinux.org/
+
+### uutils-coreutils
+- Copyright: uutils/coreutils contributors
+- License: MIT License
+- Repository: https://github.com/uutils/coreutils
+
+### Rust Utilities
+
+The following Rust-based utilities are included in the ISO:
+
+- **ripgrep** - MIT or Unlicense
+- **fd** - MIT or Apache-2.0
+- **bat** - MIT or Apache-2.0
+- **eza** - MIT
+- **procs** - MIT
+- **bottom** - MIT
+- **dust** - Apache-2.0
+- **zoxide** - MIT
+- **starship** - ISC
+- **tealdeer** - MIT or Apache-2.0
+- **sd** - MIT
+- **tokei** - MIT or Apache-2.0
+- **hyperfine** - MIT or Apache-2.0
+
+For complete license information, please refer to:
+- Individual package license files in the installed system
+- Package source repositories
+- ArchLinux package information: `pacman -Qi <package-name>`
+
+### License Compatibility
+
+The MIT License used for this build system is compatible with:
+- All included Rust utilities (MIT, Apache-2.0, ISC, Unlicense)
+- ArchLinux packaging guidelines
+- GPL-licensed software (MIT can be included in GPL projects)
+
+---
+
+**Note**: This file provides a summary. For authoritative license information,
+please refer to the actual license files of each software package.
+

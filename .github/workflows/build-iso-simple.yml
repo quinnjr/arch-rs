@@ -1,0 +1,65 @@
+name: Build ISO (Simple - Artifacts Only)
+
+on:
+  push:
+    branches:
+      - develop
+      - 'release/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
+      - develop
+      - main
+  workflow_dispatch:
+
+env:
+  ISO_NAME: arch-rs
+
+jobs:
+  build-iso:
+    name: Build ArchLinux ISO
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build ISO in Docker container
+        run: |
+          docker run --rm \
+            --privileged \
+            -v "${{ github.workspace }}":/workspace \
+            -w /workspace \
+            archlinux:latest \
+            bash -c "
+              set -e
+              pacman -Syu --noconfirm
+              pacman -S --noconfirm archiso git
+              chmod +x build.sh profile/airootfs/root/*.sh scripts/*.sh 2>/dev/null || true
+              ./build.sh --clean
+            "
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-rs-iso
+          path: out/*.iso
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Generate checksums
+        run: |
+          cd out
+          for iso in *.iso; do
+            echo "Generating checksums for $iso"
+            sha256sum "$iso" > "${iso}.sha256"
+            md5sum "$iso" > "${iso}.md5"
+          done
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: iso-checksums
+          path: out/*.{sha256,md5}
+          retention-days: 7
+

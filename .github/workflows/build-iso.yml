@@ -1,0 +1,207 @@
+name: Build and Release ArchLinux ISO
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0 (git-flow: only on main)
+    branches:
+      - main  # Also trigger on main branch pushes (for hotfixes)
+  workflow_dispatch:  # Allow manual triggering
+    inputs:
+      version:
+        description: 'Version tag (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+      branch:
+        description: 'Branch to build from (main for releases, main for hotfixes)'
+        required: false
+        default: 'main'
+
+env:
+  ISO_NAME: arch-rs
+
+jobs:
+  build-iso:
+    name: Build ArchLinux ISO with Rust Utilities
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+
+      - name: Build ISO in Docker container
+        run: |
+          docker run --rm \
+            --privileged \
+            -v "${{ github.workspace }}":/workspace:rw \
+            -w /workspace \
+            archlinux:latest \
+            bash -c "
+              set -e
+              # Update system
+              pacman -Syu --noconfirm
+
+              # Install dependencies
+              pacman -S --noconfirm archiso git
+
+              # Make scripts executable
+              chmod +x build.sh profile/airootfs/root/*.sh scripts/*.sh 2>/dev/null || true
+
+              # Build ISO
+              ./build.sh --clean
+
+              # Find ISO and rename it
+              ISO_FILE=\$(find out -name '*.iso' -type f | head -1)
+              if [ -z \"\$ISO_FILE\" ]; then
+                echo \"ERROR: No ISO file found in out/ directory\"
+                ls -la out/ || true
+                exit 1
+              fi
+
+              ISO_DIR=\$(dirname \"\$ISO_FILE\")
+              NEW_NAME=\"${ISO_NAME}-${{ steps.version.outputs.version }}.iso\"
+              NEW_PATH=\"\$ISO_DIR/\$NEW_NAME\"
+
+              cp \"\$ISO_FILE\" \"\$NEW_PATH\"
+              echo \"ISO built: \$NEW_PATH\"
+              ls -lh \"\$NEW_PATH\"
+            "
+
+      - name: Find and prepare ISO
+        id: iso
+        run: |
+          # Find the ISO file
+          ISO_FILE=$(find out -name "${ISO_NAME}-${{ steps.version.outputs.version }}.iso" -type f | head -1)
+
+          # Fallback to any ISO if versioned one not found
+          if [ -z "$ISO_FILE" ]; then
+            ISO_FILE=$(find out -name '*.iso' -type f | head -1)
+          fi
+
+          if [ -z "$ISO_FILE" ]; then
+            echo "ERROR: No ISO file found!"
+            ls -la out/ || true
+            exit 1
+          fi
+
+          ISO_NAME=$(basename "$ISO_FILE")
+          ISO_DIR=$(dirname "$ISO_FILE")
+
+          # Rename to versioned name if needed
+          if [[ "$ISO_NAME" != "${ISO_NAME}-${{ steps.version.outputs.version }}.iso" ]]; then
+            NEW_NAME="${ISO_NAME}-${{ steps.version.outputs.version }}.iso"
+            NEW_PATH="$ISO_DIR/$NEW_NAME"
+            cp "$ISO_FILE" "$NEW_PATH"
+            ISO_FILE="$NEW_PATH"
+            ISO_NAME="$NEW_NAME"
+          fi
+
+          echo "path=${ISO_FILE}" >> $GITHUB_OUTPUT
+          echo "name=${ISO_NAME}" >> $GITHUB_OUTPUT
+          echo "ISO found: ${ISO_FILE}"
+          ls -lh "${ISO_FILE}"
+
+      - name: Upload ISO artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arch-rs-iso-${{ steps.version.outputs.version }}
+          path: ${{ steps.iso.outputs.path }}
+          retention-days: 30
+
+      - name: Get ISO size and checksums
+        id: checksums
+        run: |
+          if [ -f "${{ steps.iso.outputs.path }}" ]; then
+            ISO_SIZE=$(du -h "${{ steps.iso.outputs.path }}" | cut -f1)
+            SHA256=$(sha256sum "${{ steps.iso.outputs.path }}" | cut -d' ' -f1)
+            MD5=$(md5sum "${{ steps.iso.outputs.path }}" | cut -d' ' -f1)
+
+            echo "size=${ISO_SIZE}" >> $GITHUB_OUTPUT
+            echo "sha256=${SHA256}" >> $GITHUB_OUTPUT
+            echo "md5=${MD5}" >> $GITHUB_OUTPUT
+
+            echo "ISO Size: ${ISO_SIZE}"
+            echo "SHA256: ${SHA256}"
+            echo "MD5: ${MD5}"
+          fi
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: ArchLinux ISO with Rust Utilities ${{ steps.version.outputs.version }}
+          body: |
+            ## ArchLinux ISO with Rust-Based Utilities
+
+            **Version:** ${{ steps.version.outputs.version }}
+            **Build Date:** $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+            **Commit:** ${{ github.sha }}
+
+            ### ISO Information
+            - **File:** ${{ steps.iso.outputs.name }}
+            - **Size:** ${{ steps.checksums.outputs.size }}
+            - **SHA256:** `${{ steps.checksums.outputs.sha256 }}`
+            - **MD5:** `${{ steps.checksums.outputs.md5 }}`
+
+            ### What's Included
+            This ISO replaces GNU core utilities with Rust-based alternatives:
+            - **uutils-coreutils** - Complete coreutils replacement
+            - **ripgrep (rg)** - Fast grep replacement
+            - **fd** - Fast find replacement
+            - **bat** - cat with syntax highlighting
+            - **eza** - Modern ls replacement
+            - **procs** - Modern ps replacement
+            - **bottom (btm)** - System monitor
+            - **dust** - du replacement
+            - **zoxide** - Smart cd replacement
+            - **starship** - Cross-shell prompt
+            - **tealdeer (tldr)** - Simplified man pages
+            - **sd** - Intuitive sed replacement
+            - **tokei** - Code statistics
+            - **hyperfine** - Benchmarking tool
+
+            ### Installation
+            See [INSTALL.md](https://github.com/${{ github.repository }}/blob/main/INSTALL.md) for installation instructions.
+
+            ### Verification
+            ```bash
+            # Verify SHA256 checksum
+            echo "${{ steps.checksums.outputs.sha256 }}" | sha256sum -c
+
+            # Verify MD5 checksum
+            echo "${{ steps.checksums.outputs.md5 }}" | md5sum -c
+            ```
+          files: ${{ steps.iso.outputs.path }}
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') || contains(steps.version.outputs.version, 'alpha') || contains(steps.version.outputs.version, 'beta') || contains(steps.version.outputs.version, 'rc') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Summary
+        run: |
+          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ ISO built successfully!" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ steps.version.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**File:** ${{ steps.iso.outputs.name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Size:** ${{ steps.checksums.outputs.size }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**SHA256:** \`${{ steps.checksums.outputs.sha256 }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**MD5:** \`${{ steps.checksums.outputs.md5 }}\`" >> $GITHUB_STEP_SUMMARY
+

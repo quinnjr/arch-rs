@@ -1,0 +1,14 @@
+# Git Flow Configuration
+# This file documents the git-flow branching model used in this repository
+
+[gitflow "branch"]
+	master = main
+	develop = develop
+
+[gitflow "prefix"]
+	feature = feature/
+	release = release/
+	hotfix = hotfix/
+	support = support/
+	versiontag = v
+
