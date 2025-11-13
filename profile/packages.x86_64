@@ -5,6 +5,7 @@ linux-firmware
 
 # Bootloader
 grub
+syslinux
 
 # Network
 networkmanager

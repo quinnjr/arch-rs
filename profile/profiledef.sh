@@ -19,11 +19,14 @@ iso_application="ArchLinux Live/Rescue CD"
 # Installation media directory
 install_dir="arch"
 
-# Boot modes to build
-bootmodes=('bios.syslinux.mbr' 'bios.syslinux.eltorito' 'uefi-x64.systemd-boot.esp' 'uefi-x64.systemd-boot.eltorito')
+# Boot modes to build (using modern boot mode names)
+bootmodes=('bios.syslinux' 'uefi.systemd-boot')
 
 # Architecture
 arch="x86_64"
+
+# Pacman configuration file (required by mkarchiso)
+pacman_conf="pacman.conf"
 
 # Pacman mirror to use during build
 # Note: This is optional - if not set, archiso will use system default
@@ -40,4 +43,10 @@ pacman_packages_exclude=(
     sed            # Replaced by sd
     procps-ng      # Contains ps, top, etc. - Replaced by procs and bottom
 )
+
+# Optional: AI rootfs image type (default: squashfs)
+# airootfs_image_type="squashfs"
+
+# Optional: AI rootfs image tool options
+# airootfs_image_tool_options=('-comp' 'xz' '-Xbcj' 'x86' '-b' '1M' '-Xdict-size' '1M')
 
