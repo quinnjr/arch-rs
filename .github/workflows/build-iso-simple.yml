@@ -36,13 +36,13 @@ jobs:
               pacman -Syu --noconfirm
               pacman -S --noconfirm archiso git
               chmod +x build.sh profile/airootfs/root/*.sh scripts/*.sh 2>/dev/null || true
-              
+
               # Verify profile structure
               if [ ! -f profile/profiledef.sh ]; then
                 echo \"ERROR: profile/profiledef.sh not found\"
                 exit 1
               fi
-              
+
               ./build.sh --clean
             "
 
