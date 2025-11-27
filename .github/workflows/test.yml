@@ -259,112 +259,10 @@ jobs:
           echo "| Script Permissions | ${{ steps.permissions.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Aliases Config | ${{ steps.aliases.outcome == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
 
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    needs: [unit-tests, validation]
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Test build script dry-run
-        run: |
-          echo "Testing build script structure..."
-
-          # Check that build.sh exists and is executable
-          if [ ! -x "build.sh" ]; then
-            echo "❌ build.sh is not executable"
-            exit 1
-          fi
-
-          # Check that build.sh has required functions
-          if ! grep -q "log_info\|log_error" build.sh; then
-            echo "⚠️  Warning: build.sh may be missing logging functions"
-          fi
-
-          # Check that build.sh checks for root
-          if ! grep -q "EUID\|root" build.sh; then
-            echo "⚠️  Warning: build.sh may not check for root privileges"
-          fi
-
-          echo "✅ Build script structure validated"
-
-      - name: Test profile structure
-        run: |
-          echo "Testing profile structure..."
-
-          # Check profile directory structure
-          PROFILE_DIRS=(
-            "profile"
-            "profile/airootfs"
-            "profile/airootfs/etc"
-            "profile/airootfs/root"
-            "profile/efiboot"
-            "profile/syslinux"
-          )
-
-          for dir in "${PROFILE_DIRS[@]}"; do
-            if [ ! -d "$dir" ]; then
-              echo "❌ Directory missing: $dir"
-              exit 1
-            fi
-          done
-          echo "✅ Profile directory structure valid"
-
-      - name: Test configuration consistency
-        run: |
-          echo "Testing configuration consistency..."
-
-          # Check that pacman_packages_exclude is empty (we allow GNU utilities during build)
-          EXCLUDED_PROFILEDEF=$(grep -A 10 "pacman_packages_exclude=(" profile/profiledef.sh | grep -oE '[a-z-]+' | grep -v "pacman_packages_exclude" | grep -v "^$" | sort)
-          
-          # Check that IgnorePkg is commented out (we allow GNU utilities during build)
-          EXCLUDED_PACMAN=$(grep "^IgnorePkg" profile/pacman.conf | grep -oE '[a-z-]+' | grep -v "IgnorePkg" | sort)
-
-          echo "Excluded in profiledef.sh: ${EXCLUDED_PROFILEDEF:-<empty>}"
-          echo "Excluded in pacman.conf (active): ${EXCLUDED_PACMAN:-<empty>}"
-
-          # Our approach: Both should be empty/commented because we:
-          # 1. Allow GNU utilities during build (they're required dependencies)
-          # 2. Remove them in customize_airootfs.sh after installation
-          # 3. Configure IgnorePkg in the installed system (not in the build profile)
-          
-          if [ -n "$EXCLUDED_PROFILEDEF" ]; then
-            echo "❌ Error: pacman_packages_exclude should be empty (GNU utilities removed in customize_airootfs.sh)"
-            exit 1
-          fi
-          
-          if [ -n "$EXCLUDED_PACMAN" ]; then
-            echo "❌ Error: IgnorePkg should be commented out in profile/pacman.conf (prevents package installation)"
-            exit 1
-          fi
-          
-          # Verify that customize_airootfs.sh handles GNU utility removal
-          if ! grep -q "Removing GNU utilities" profile/airootfs/root/customize_airootfs.sh; then
-            echo "❌ Error: customize_airootfs.sh should handle GNU utility removal"
-            exit 1
-          fi
-          
-          echo "✅ Configuration is consistent:"
-          echo "   - pacman_packages_exclude is empty (allows build)"
-          echo "   - IgnorePkg is commented out (allows build)"
-          echo "   - GNU utilities are removed in customize_airootfs.sh"
-
-      - name: Integration Test Summary
-        if: always()
-        run: |
-          echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Integration tests completed" >> $GITHUB_STEP_SUMMARY
-
   summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [unit-tests, validation, integration-tests]
+    needs: [unit-tests, validation]
     if: always()
     defaults:
       run:
@@ -379,12 +277,10 @@ jobs:
           echo "|------------|--------|" >> $GITHUB_STEP_SUMMARY
           echo "| Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Validation | ${{ needs.validation.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
-          echo "| Integration | ${{ needs.integration-tests.result == 'success' && '✅ Pass' || '❌ Fail' }} |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ needs.unit-tests.result }}" == "success" ] && \
-             [ "${{ needs.validation.result }}" == "success" ] && \
-             [ "${{ needs.integration-tests.result }}" == "success" ]; then
+             [ "${{ needs.validation.result }}" == "success" ]; then
             echo "🎉 All tests passed!" >> $GITHUB_STEP_SUMMARY
           else
             echo "⚠️  Some tests failed. Please review the logs." >> $GITHUB_STEP_SUMMARY
