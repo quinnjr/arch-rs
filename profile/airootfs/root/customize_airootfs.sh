@@ -318,9 +318,15 @@ fi
 # Documentation (tealdeer provides 'tldr' command, no alias needed)
 RUST_UTILS_EOF
 
-# Also add aliases directly to root's .bashrc for immediate availability
-mkdir -p /root
-cat >> /root/.bashrc << 'ROOT_BASHRC_EOF'
+# Create shell-specific alias files
+# Function to create aliases for a shell
+create_shell_aliases() {
+    local shell_name="$1"
+    local config_file="$2"
+    local init_cmd="$3"
+    
+    mkdir -p "$(dirname "$config_file")"
+    cat >> "$config_file" << EOF
 
 # Rust-based utility aliases
 # Source system-wide aliases
@@ -328,11 +334,10 @@ if [ -f /etc/profile.d/rust-utils.sh ]; then
     source /etc/profile.d/rust-utils.sh
 fi
 
-# Additional root-specific aliases
 # Ensure PATH includes /usr/local/bin for wrapper scripts
-export PATH="/usr/local/bin:$PATH"
+export PATH="/usr/local/bin:\$PATH"
 
-# Direct aliases for root user (redundant but ensures availability)
+# Direct aliases for Rust utilities
 if command -v rg &> /dev/null; then alias grep='rg'; fi
 if command -v fd &> /dev/null; then alias find='fd'; fi
 if command -v bat &> /dev/null; then alias cat='bat --paging=never'; alias batp='bat'; fi
@@ -350,14 +355,112 @@ if command -v dust &> /dev/null; then alias du='dust'; fi
 
 # Initialize zoxide if available
 if command -v zoxide &> /dev/null; then
-    eval "$(zoxide init bash)"
+    $init_cmd
 fi
 
 # Initialize starship if available
 if command -v starship &> /dev/null; then
-    eval "$(starship init bash)"
+    eval "\$(starship init $shell_name)"
 fi
-ROOT_BASHRC_EOF
+EOF
+}
+
+# Add aliases to root's bashrc
+create_shell_aliases "bash" "/root/.bashrc" "eval \"\$(zoxide init bash)\""
+
+# Add aliases to root's zshrc
+create_shell_aliases "zsh" "/root/.zshrc" "eval \"\$(zoxide init zsh)\""
+
+# Add aliases to root's fish config
+mkdir -p /root/.config/fish
+cat >> /root/.config/fish/config.fish << 'FISH_CONFIG_EOF'
+
+# Rust-based utility aliases
+# Ensure PATH includes /usr/local/bin for wrapper scripts
+set -gx PATH /usr/local/bin $PATH
+
+# Direct aliases for Rust utilities
+if command -v rg > /dev/null
+    alias grep='rg'
+end
+if command -v fd > /dev/null
+    alias find='fd'
+end
+if command -v bat > /dev/null
+    alias cat='bat --paging=never'
+    alias batp='bat'
+end
+if command -v sd > /dev/null
+    alias sed='sd'
+end
+if command -v eza > /dev/null
+    alias ls='eza'
+    alias ll='eza -l'
+    alias la='eza -la'
+    alias lt='eza --tree'
+    alias tree='eza --tree'
+end
+if command -v procs > /dev/null
+    alias ps='procs'
+end
+if command -v btm > /dev/null
+    alias top='btm'
+    alias htop='btm'
+end
+if command -v dust > /dev/null
+    alias du='dust'
+end
+
+# Initialize zoxide if available
+if command -v zoxide > /dev/null
+    zoxide init fish | source
+end
+
+# Initialize starship if available
+if command -v starship > /dev/null
+    starship init fish | source
+end
+FISH_CONFIG_EOF
+
+# Also create system-wide zsh config
+mkdir -p /etc/zsh
+cat >> /etc/zsh/zshrc << 'ZSHRC_EOF'
+
+# Rust-based utility aliases
+# Source system-wide aliases
+if [ -f /etc/profile.d/rust-utils.sh ]; then
+    source /etc/profile.d/rust-utils.sh
+fi
+
+# Ensure PATH includes /usr/local/bin for wrapper scripts
+export PATH="/usr/local/bin:$PATH"
+
+# Direct aliases for Rust utilities
+if command -v rg &> /dev/null; then alias grep='rg'; fi
+if command -v fd &> /dev/null; then alias find='fd'; fi
+if command -v bat &> /dev/null; then alias cat='bat --paging=never'; alias batp='bat'; fi
+if command -v sd &> /dev/null; then alias sed='sd'; fi
+if command -v eza &> /dev/null; then
+    alias ls='eza'
+    alias ll='eza -l'
+    alias la='eza -la'
+    alias lt='eza --tree'
+    alias tree='eza --tree'
+fi
+if command -v procs &> /dev/null; then alias ps='procs'; fi
+if command -v btm &> /dev/null; then alias top='btm'; alias htop='btm'; fi
+if command -v dust &> /dev/null; then alias du='dust'; fi
+
+# Initialize zoxide if available
+if command -v zoxide &> /dev/null; then
+    eval "$(zoxide init zsh)"
+fi
+
+# Initialize starship if available
+if command -v starship &> /dev/null; then
+    eval "$(starship init zsh)"
+fi
+ZSHRC_EOF
 
 # Verify Rust utilities installation
 echo "Verifying Rust utilities installation..."
