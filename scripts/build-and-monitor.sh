@@ -98,7 +98,27 @@ $DOCKER_CMD run --rm \
 
         echo ''
         echo '=== [2/6] Installing dependencies ==='
-        pacman -S --noconfirm archiso git 2>&1 | tail -5
+        pacman -S --noconfirm archiso git reflector 2>&1 | tail -5
+
+        echo ''
+        echo '=== [2.5/6] Updating mirrorlist for better reliability ==='
+        reflector --country 'United States' --age 12 --protocol https --sort rate --save /etc/pacman.d/mirrorlist 2>/dev/null || {
+            echo 'Reflector failed, using reliable mirrors...'
+            cat > /etc/pacman.d/mirrorlist << 'MIRRORLIST_EOF'
+## Arch Linux repository mirrorlist
+## Generated for build
+
+## United States
+Server = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch
+Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch
+Server = https://mirror.fcix.net/archlinux/\$repo/os/\$arch
+
+## Europe (backup)
+Server = https://mirror.selfnet.de/archlinux/\$repo/os/\$arch
+Server = https://archlinux.mirror.liteserver.nl/\$repo/os/\$arch
+MIRRORLIST_EOF
+        }
+        echo 'Mirrorlist updated ✓'
 
         echo ''
         echo '=== [3/6] Making scripts executable ==='
