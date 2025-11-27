@@ -102,23 +102,35 @@ $DOCKER_CMD run --rm \
 
         echo ''
         echo '=== [2.5/6] Updating mirrorlist for better reliability ==='
-        reflector --country 'United States' --age 12 --protocol https --sort rate --save /etc/pacman.d/mirrorlist 2>/dev/null || {
-            echo 'Reflector failed, using reliable mirrors...'
-            cat > /etc/pacman.d/mirrorlist << 'MIRRORLIST_EOF'
+        # Try downloading official mirrorlist first (most reliable)
+        curl -s 'https://archlinux.org/mirrorlist/?country=US&country=DE&country=NL&protocol=https&ip_version=4&use_mirror_status=on' | sed 's/^#Server/Server/' > /etc/pacman.d/mirrorlist 2>/dev/null && echo 'Official mirrorlist downloaded ✓' || {
+            echo 'Official mirrorlist download failed, trying reflector...'
+            # Try reflector with multiple countries
+            reflector --country 'United States,Germany,Netherlands' --age 12 --protocol https --sort rate --save /etc/pacman.d/mirrorlist 2>/dev/null && echo 'Reflector updated mirrorlist ✓' || {
+                echo 'Reflector failed, using hardcoded reliable mirrors...'
+                # Use known working mirrors - download from official source
+                curl -s 'https://archlinux.org/mirrorlist/all/https/' | sed 's/^#Server/Server/' | head -20 > /etc/pacman.d/mirrorlist 2>/dev/null || {
+                    # Last resort: hardcoded mirrors
+                    cat > /etc/pacman.d/mirrorlist << 'MIRRORLIST_EOF'
 ## Arch Linux repository mirrorlist
 ## Generated for build
 
 ## United States
-Server = https://geo.mirror.pkgbuild.com/\$repo/os/\$arch
-Server = https://mirror.rackspace.com/archlinux/\$repo/os/\$arch
-Server = https://mirror.fcix.net/archlinux/\$repo/os/\$arch
+Server = https://mirror.rackspace.com/archlinux/$repo/os/$arch
+Server = https://geo.mirror.pkgbuild.com/$repo/os/$arch
+Server = https://mirror.fcix.net/archlinux/$repo/os/$arch
 
 ## Europe (backup)
-Server = https://mirror.selfnet.de/archlinux/\$repo/os/\$arch
-Server = https://archlinux.mirror.liteserver.nl/\$repo/os/\$arch
+Server = https://mirror.selfnet.de/archlinux/$repo/os/$arch
+Server = https://archlinux.mirror.liteserver.nl/$repo/os/$arch
+Server = https://mirror.ams1.nl.leaseweb.net/archlinux/$repo/os/$arch
 MIRRORLIST_EOF
+                }
+            }
         }
         echo 'Mirrorlist updated ✓'
+        echo 'First few mirrors:'
+        head -5 /etc/pacman.d/mirrorlist
 
         echo ''
         echo '=== [3/6] Making scripts executable ==='
