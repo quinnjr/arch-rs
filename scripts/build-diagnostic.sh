@@ -82,7 +82,7 @@ $DOCKER_CMD run --rm \
         else
             echo '✗ Host DNS resolution failed'
         fi
-        
+
         echo 'Testing HTTP connectivity on host...'
         if curl -s --max-time 5 https://archlinux.org > /dev/null 2>&1; then
             echo '✓ Host HTTP connectivity working'
