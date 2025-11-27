@@ -126,6 +126,8 @@ jobs:
               NEW_PATH=\"\$ISO_DIR/\$NEW_NAME\"
 
               cp \"\$ISO_FILE\" \"\$NEW_PATH\"
+              # Ensure file is readable/writable by host user (GitHub Actions runner)
+              chmod 666 \"\$NEW_PATH\" 2>/dev/null || true
               echo \"ISO built: \$NEW_PATH\"
               ls -lh \"\$NEW_PATH\"
             "
@@ -133,12 +135,27 @@ jobs:
       - name: Find and prepare ISO
         id: iso
         run: |
-          # Find the ISO file
-          ISO_FILE=$(find out -name "${ISO_NAME}-${{ steps.version.outputs.version }}.iso" -type f | head -1)
+          # Find the ISO file - first try versioned name
+          EXPECTED_NAME="${ISO_NAME}-${{ steps.version.outputs.version }}.iso"
+          ISO_FILE=$(find out -name "$EXPECTED_NAME" -type f | head -1)
 
           # Fallback to any ISO if versioned one not found
           if [ -z "$ISO_FILE" ]; then
             ISO_FILE=$(find out -name '*.iso' -type f | head -1)
+            if [ -n "$ISO_FILE" ]; then
+              # Check if it already has the version in the name
+              CURRENT_NAME=$(basename "$ISO_FILE")
+              if [[ "$CURRENT_NAME" != "$EXPECTED_NAME" ]]; then
+                # Rename to versioned name
+                ISO_DIR=$(dirname "$ISO_FILE")
+                NEW_PATH="$ISO_DIR/$EXPECTED_NAME"
+                # Ensure we have write permissions (file may be owned by root from Docker)
+                sudo chmod 666 "$ISO_FILE" 2>/dev/null || chmod 666 "$ISO_FILE" 2>/dev/null || true
+                cp "$ISO_FILE" "$NEW_PATH"
+                sudo chmod 644 "$NEW_PATH" 2>/dev/null || chmod 644 "$NEW_PATH" 2>/dev/null || true
+                ISO_FILE="$NEW_PATH"
+              fi
+            fi
           fi
 
           if [ -z "$ISO_FILE" ]; then
@@ -147,20 +164,12 @@ jobs:
             exit 1
           fi
 
-          ISO_NAME=$(basename "$ISO_FILE")
-          ISO_DIR=$(dirname "$ISO_FILE")
-
-          # Rename to versioned name if needed
-          if [[ "$ISO_NAME" != "${ISO_NAME}-${{ steps.version.outputs.version }}.iso" ]]; then
-            NEW_NAME="${ISO_NAME}-${{ steps.version.outputs.version }}.iso"
-            NEW_PATH="$ISO_DIR/$NEW_NAME"
-            cp "$ISO_FILE" "$NEW_PATH"
-            ISO_FILE="$NEW_PATH"
-            ISO_NAME="$NEW_NAME"
-          fi
-
+          # Ensure readable permissions (file may be owned by root from Docker)
+          sudo chmod 644 "$ISO_FILE" 2>/dev/null || chmod 644 "$ISO_FILE" 2>/dev/null || true
+          
+          FINAL_NAME=$(basename "$ISO_FILE")
           echo "path=${ISO_FILE}" >> $GITHUB_OUTPUT
-          echo "name=${ISO_NAME}" >> $GITHUB_OUTPUT
+          echo "name=${FINAL_NAME}" >> $GITHUB_OUTPUT
           echo "ISO found: ${ISO_FILE}"
           ls -lh "${ISO_FILE}"
 
