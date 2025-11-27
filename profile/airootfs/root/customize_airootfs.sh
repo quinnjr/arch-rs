@@ -6,6 +6,59 @@ set -euo pipefail
 
 echo "Customizing root filesystem for rust-based utilities..."
 
+# Configure DNS resolution
+echo "Configuring DNS resolution..."
+# Ensure systemd-resolved is enabled
+systemctl enable systemd-resolved.service 2>/dev/null || true
+
+# Configure resolv.conf to use systemd-resolved stub resolver
+if [ -f /etc/resolv.conf ]; then
+    # Backup original if it exists and isn't already a symlink
+    if [ ! -L /etc/resolv.conf ]; then
+        mv /etc/resolv.conf /etc/resolv.conf.backup 2>/dev/null || true
+    fi
+    # Create symlink to systemd-resolved stub resolver
+    ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf 2>/dev/null || true
+fi
+
+# Ensure systemd-resolved configuration directory exists
+mkdir -p /etc/systemd/resolved.conf.d
+
+# Configure DNS servers if not already configured
+if [ ! -f /etc/systemd/resolved.conf.d/archiso.conf ]; then
+    cat > /etc/systemd/resolved.conf.d/archiso.conf << 'RESOLVED_EOF'
+[Resolve]
+# Use reliable DNS servers
+DNS=1.1.1.1 8.8.8.8 1.0.0.1 8.8.4.4
+FallbackDNS=9.9.9.9 208.67.222.222
+# Use systemd-resolved stub resolver
+DNSStubListener=yes
+# Enable DNSSEC
+DNSSEC=allow-downgrade
+# Cache DNS responses
+Cache=yes
+RESOLVED_EOF
+fi
+
+echo "DNS configuration completed"
+
+# Configure NetworkManager to use systemd-resolved
+echo "Configuring NetworkManager for DNS..."
+mkdir -p /etc/NetworkManager/conf.d
+if [ ! -f /etc/NetworkManager/conf.d/dns.conf ]; then
+    cat > /etc/NetworkManager/conf.d/dns.conf << 'NM_DNS_EOF'
+[main]
+# Use systemd-resolved for DNS resolution
+dns=systemd-resolved
+NM_DNS_EOF
+fi
+
+# Enable NetworkManager and systemd-resolved services
+systemctl enable NetworkManager.service 2>/dev/null || true
+systemctl enable systemd-resolved.service 2>/dev/null || true
+
+echo "NetworkManager DNS configuration completed"
+
 # Remove GNU utilities if they were accidentally installed
 # These are replaced by Rust alternatives
 GNU_PACKAGES=(
