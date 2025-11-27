@@ -161,10 +161,18 @@ export PATH="/usr/bin:$PATH"
 EOF
 chmod +x /usr/local/bin/ensure-uutils.sh
 
+# Ensure /usr/local/bin is early in PATH so custom pacstrap wrapper is used
+# This must be done before updating shell profiles
+if ! grep -q "/usr/local/bin" /etc/profile; then
+    # Add to beginning of /etc/profile
+    sed -i '1i export PATH="/usr/local/bin:$PATH"' /etc/profile 2>/dev/null || \
+    echo 'export PATH="/usr/local/bin:$PATH"' >> /etc/profile
+fi
+
 # Update shell profiles to prefer uutils and Rust utilities
 for profile in /etc/profile /etc/bash.bashrc /root/.bashrc; do
     if [ -f "$profile" ]; then
-        # Ensure /usr/local/bin is in PATH (for wrapper scripts)
+        # Ensure /usr/local/bin is in PATH (for wrapper scripts and custom pacstrap)
         if ! grep -q "/usr/local/bin" "$profile"; then
             echo 'export PATH="/usr/local/bin:$PATH"' >> "$profile"
         fi
@@ -324,7 +332,7 @@ create_shell_aliases() {
     local shell_name="$1"
     local config_file="$2"
     local init_cmd="$3"
-    
+
     mkdir -p "$(dirname "$config_file")"
     cat >> "$config_file" << EOF
 

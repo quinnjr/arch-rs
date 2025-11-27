@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+# Custom pacstrap wrapper that installs Rust utilities instead of GNU utilities
+# This script intercepts pacstrap calls and automatically:
+# 1. Excludes GNU utilities from installation
+# 2. Installs Rust utilities after base system installation
+# 3. Configures the system for Rust utilities
+
+set -euo pipefail
+
+# GNU packages to exclude and their Rust replacements
+GNU_PACKAGES=("coreutils" "grep" "findutils" "sed" "procps-ng")
+RUST_PACKAGES=("uutils-coreutils" "ripgrep" "fd" "bat" "eza" "procs" "bottom" "dust" "zoxide" "starship" "tealdeer" "sd" "tokei" "hyperfine")
+
+# Find the real pacstrap binary
+REAL_PACSTRAP=""
+for path in /usr/bin/pacstrap /bin/pacstrap; do
+    if [ -x "$path" ] && [ ! -L "$path" ]; then
+        REAL_PACSTRAP="$path"
+        break
+    fi
+done
+
+if [ -z "$REAL_PACSTRAP" ]; then
+    echo "Error: Could not find pacstrap binary" >&2
+    exit 1
+fi
+
+# Parse arguments to find mountpoint and packages
+MOUNTPOINT=""
+PACKAGES=()
+IGNORE_PACKAGES=("${GNU_PACKAGES[@]}")
+CUSTOM_IGNORE=()
+SKIP_RUST_INSTALL=false
+PASSTHROUGH_ARGS=()
+
+# Parse arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --help|-h)
+            # Show help and pass through
+            exec "$REAL_PACSTRAP" "$@"
+            ;;
+        --ignore)
+            # Collect custom ignore packages
+            if [ -n "${2:-}" ]; then
+                IFS=',' read -ra CUSTOM_IGNORE <<< "$2"
+                IGNORE_PACKAGES+=("${CUSTOM_IGNORE[@]}")
+                PASSTHROUGH_ARGS+=("$1" "$2")
+                shift 2
+            else
+                PASSTHROUGH_ARGS+=("$1")
+                shift
+            fi
+            ;;
+        --skip-rust)
+            # Skip automatic Rust utility installation
+            SKIP_RUST_INSTALL=true
+            shift
+            ;;
+        -K|--cachedir|-C|--config|-G|--noconfirm|-M|--noprogressbar|-U|--noupgrade)
+            # Pass through pacstrap options
+            PASSTHROUGH_ARGS+=("$1")
+            if [[ "${2:-}" != -* ]] && [[ -n "${2:-}" ]]; then
+                PASSTHROUGH_ARGS+=("$2")
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        -*)
+            # Other flags - pass through
+            PASSTHROUGH_ARGS+=("$1")
+            shift
+            ;;
+        *)
+            # Positional arguments: first is mountpoint, rest are packages
+            if [ -z "$MOUNTPOINT" ]; then
+                MOUNTPOINT="$1"
+            else
+                PACKAGES+=("$1")
+            fi
+            PASSTHROUGH_ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+if [ -z "$MOUNTPOINT" ]; then
+    echo "Error: No mountpoint specified" >&2
+    exec "$REAL_PACSTRAP" "$@"
+fi
+
+# Build ignore list
+IGNORE_LIST=$(IFS=','; echo "${IGNORE_PACKAGES[*]}")
+
+echo "=========================================="
+echo "Custom pacstrap: Installing with Rust utilities"
+echo "=========================================="
+echo "Mountpoint: $MOUNTPOINT"
+echo "Excluding GNU utilities: ${GNU_PACKAGES[*]}"
+echo ""
+
+# Step 1: Install base system excluding GNU utilities
+echo "Step 1: Installing base system (excluding GNU utilities)..."
+if ! "$REAL_PACSTRAP" -K "$MOUNTPOINT" --ignore "$IGNORE_LIST" "${PASSTHROUGH_ARGS[@]:1}"; then
+    echo "Error: Base system installation failed" >&2
+    exit 1
+fi
+
+# Step 2: Install Rust utilities
+if [ "$SKIP_RUST_INSTALL" = false ]; then
+    echo ""
+    echo "Step 2: Installing Rust-based utilities..."
+    
+    # Install uutils-coreutils first (required)
+    echo "  Installing uutils-coreutils..."
+    if ! "$REAL_PACSTRAP" -K "$MOUNTPOINT" uutils-coreutils "${PASSTHROUGH_ARGS[@]:1}" 2>/dev/null; then
+        echo "  Warning: Failed to install uutils-coreutils, continuing..."
+    fi
+    
+    # Install other Rust utilities
+    echo "  Installing Rust utility replacements..."
+    for pkg in "${RUST_PACKAGES[@]}"; do
+        if [ "$pkg" != "uutils-coreutils" ]; then
+            echo "    Installing $pkg..."
+            "$REAL_PACSTRAP" -K "$MOUNTPOINT" "$pkg" "${PASSTHROUGH_ARGS[@]:1}" 2>/dev/null || echo "    Warning: Failed to install $pkg"
+        fi
+    done
+fi
+
+# Step 3: Configure pacman.conf in the installed system
+echo ""
+echo "Step 3: Configuring pacman.conf to exclude GNU utilities..."
+if [ -f "$MOUNTPOINT/etc/pacman.conf" ]; then
+    # Add IgnorePkg if not present
+    if ! grep -q "^IgnorePkg.*coreutils" "$MOUNTPOINT/etc/pacman.conf"; then
+        if grep -q "^\[options\]" "$MOUNTPOINT/etc/pacman.conf"; then
+            sed -i "/^\[options\]/a IgnorePkg = ${GNU_PACKAGES[*]}" "$MOUNTPOINT/etc/pacman.conf"
+            echo "  ✓ Added IgnorePkg to pacman.conf"
+        fi
+    else
+        echo "  ✓ IgnorePkg already configured"
+    fi
+fi
+
+# Step 4: Copy installation scripts to the installed system
+echo ""
+echo "Step 4: Setting up installation scripts..."
+if [ -f /root/post-install.sh ]; then
+    mkdir -p "$MOUNTPOINT/root"
+    cp /root/post-install.sh "$MOUNTPOINT/root/" 2>/dev/null || true
+    chmod +x "$MOUNTPOINT/root/post-install.sh" 2>/dev/null || true
+    echo "  ✓ Copied post-install.sh"
+fi
+
+if [ -f /root/install-helper.sh ]; then
+    cp /root/install-helper.sh "$MOUNTPOINT/root/" 2>/dev/null || true
+    chmod +x "$MOUNTPOINT/root/install-helper.sh" 2>/dev/null || true
+    echo "  ✓ Copied install-helper.sh"
+fi
+
+echo ""
+echo "=========================================="
+echo "✓ Installation complete!"
+echo "=========================================="
+echo ""
+echo "Next steps:"
+echo "1. Configure fstab: genfstab -U $MOUNTPOINT >> $MOUNTPOINT/etc/fstab"
+echo "2. Chroot into the system: arch-chroot $MOUNTPOINT"
+echo "3. Run post-install script: /root/post-install.sh"
+echo ""
+echo "The installed system is configured to use Rust utilities instead of GNU utilities."
+
