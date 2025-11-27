@@ -4,7 +4,7 @@ This guide explains how to install ArchLinux to a hard drive using this ISO, ens
 
 ## Important Notes
 
-**The ISO itself uses rust-based utilities**, but when installing to a hard drive, you need to follow these steps to ensure the installed system also uses rust-based utilities instead of GNU utilities.
+**The ISO itself uses rust-based utilities**, and when installing to a hard drive, the custom `pacstrap` wrapper automatically ensures the installed system also uses rust-based utilities instead of GNU utilities. **Just use `pacstrap` normally - it's fully automated!**
 
 ## Installation Methods
 
