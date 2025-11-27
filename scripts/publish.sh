@@ -84,13 +84,13 @@ if [ -n "$TAG_DATE" ]; then
         log_error "Date must be in YYYY.MM.DD format (e.g., 2025.11.27)"
         exit 1
     fi
-    
+
     # Validate date is valid
     if ! date -d "${TAG_DATE//./-}" &>/dev/null 2>&1 && ! date -j -f "%Y.%m.%d" "$TAG_DATE" &>/dev/null 2>&1; then
         log_error "Invalid date: $TAG_DATE"
         exit 1
     fi
-    
+
     VERSION_TAG="$TAG_DATE"
 else
     # Use today's date

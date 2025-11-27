@@ -18,7 +18,7 @@ The ISO includes a custom `pacstrap` wrapper that automatically installs Rust ut
    ```bash
    pacstrap /mnt base
    ```
-   
+
    The custom pacstrap wrapper will:
    - Automatically exclude GNU utilities (coreutils, grep, findutils, sed, procps-ng)
    - Install uutils-coreutils and all Rust utility replacements

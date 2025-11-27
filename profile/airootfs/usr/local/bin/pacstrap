@@ -111,13 +111,13 @@ fi
 if [ "$SKIP_RUST_INSTALL" = false ]; then
     echo ""
     echo "Step 2: Installing Rust-based utilities..."
-    
+
     # Install uutils-coreutils first (required)
     echo "  Installing uutils-coreutils..."
     if ! "$REAL_PACSTRAP" -K "$MOUNTPOINT" uutils-coreutils "${PASSTHROUGH_ARGS[@]:1}" 2>/dev/null; then
         echo "  Warning: Failed to install uutils-coreutils, continuing..."
     fi
-    
+
     # Install other Rust utilities
     echo "  Installing Rust utility replacements..."
     for pkg in "${RUST_PACKAGES[@]}"; do
