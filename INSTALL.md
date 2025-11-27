@@ -8,9 +8,39 @@ This guide explains how to install ArchLinux to a hard drive using this ISO, ens
 
 ## Installation Methods
 
-### Method 1: Manual Installation (Recommended)
+### Method 1: Automated Installation (Recommended - Easiest)
 
-When installing ArchLinux manually using `pacstrap`:
+The ISO includes a custom `pacstrap` wrapper that automatically installs Rust utilities instead of GNU utilities. **Just use pacstrap normally!**
+
+1. **Boot from the ISO** and follow standard ArchLinux installation steps until you reach the package installation step.
+
+2. **Install base system (Rust utilities are installed automatically):**
+   ```bash
+   pacstrap /mnt base
+   ```
+   
+   The custom pacstrap wrapper will:
+   - Automatically exclude GNU utilities (coreutils, grep, findutils, sed, procps-ng)
+   - Install uutils-coreutils and all Rust utility replacements
+   - Configure pacman.conf to ignore GNU utilities
+   - Copy installation helper scripts to the installed system
+
+3. **Continue with normal installation steps** (fstab, chroot, etc.)
+
+4. **After chrooting into the installed system, run the post-install script:**
+   ```bash
+   arch-chroot /mnt
+   /root/post-install.sh
+   ```
+
+**Note:** If you want to skip automatic Rust utility installation, use:
+```bash
+pacstrap /mnt base --skip-rust
+```
+
+### Method 2: Manual Installation (Advanced)
+
+If you prefer manual control or the wrapper doesn't work:
 
 1. **Boot from the ISO** and follow standard ArchLinux installation steps until you reach the package installation step.
 
@@ -43,7 +73,7 @@ When installing ArchLinux manually using `pacstrap`:
    /root/post-install.sh
    ```
 
-### Method 2: Using archinstall (Semi-Automated)
+### Method 3: Using archinstall (Semi-Automated)
 
 If using `archinstall`:
 
@@ -56,7 +86,7 @@ If using `archinstall`:
 
 3. This will replace GNU coreutils with rust coreutils and install additional Rust-based utilities on the installed system.
 
-### Method 3: Automated Helper Script
+### Method 4: Automated Helper Script (Legacy)
 
 The ISO includes an installation helper script that can be used:
 
