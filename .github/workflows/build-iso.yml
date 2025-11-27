@@ -37,8 +37,13 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          else
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${GITHUB_REF#refs/tags/}"
+          else
+            # For branch builds, use branch name and short SHA
+            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+            SHORT_SHA="${GITHUB_SHA:0:7}"
+            VERSION="${BRANCH_NAME}-${SHORT_SHA}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
