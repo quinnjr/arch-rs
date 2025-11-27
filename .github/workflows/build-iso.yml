@@ -3,13 +3,13 @@ name: Build and Release ArchLinux ISO
 on:
   push:
     tags:
-      - 'v*.*.*'  # Trigger on version tags like v1.0.0
+      - '20*.*.*'  # Trigger on date tags like 2025.11.27 (YYYY.MM.DD format)
   workflow_dispatch:  # Allow manual triggering
     inputs:
       version:
-        description: 'Version tag (e.g., v1.0.0)'
+        description: 'Version tag in YYYY.MM.DD format (e.g., 2025.11.27)'
         required: true
-        default: 'v1.0.0'
+        default: '2025.11.27'
 
 env:
   ISO_NAME: arch-rs
@@ -32,10 +32,8 @@ jobs:
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
           else
-            # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
+            # Extract version from tag (e.g., 2025.11.27)
             VERSION="${GITHUB_REF#refs/tags/}"
-            # Remove 'v' prefix if present
-            VERSION="${VERSION#v}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
