@@ -59,6 +59,76 @@ systemctl enable systemd-resolved.service 2>/dev/null || true
 
 echo "NetworkManager DNS configuration completed"
 
+# Configure systemd-networkd for network access in chroot
+echo "Configuring systemd-networkd for network access..."
+mkdir -p /etc/systemd/network
+if [ ! -f /etc/systemd/network/20-wired.network ]; then
+    cat > /etc/systemd/network/20-wired.network << 'NETWORK_EOF'
+[Match]
+Name=en*
+
+[Network]
+DHCP=ipv4
+NETWORK_EOF
+fi
+
+# Enable systemd-networkd for network access during build
+systemctl enable systemd-networkd.service 2>/dev/null || true
+
+# For chroot environment, we need to manually start networkd or use host network
+# Since we're in a chroot, we'll configure DNS to work with host network
+echo "Configuring network for chroot environment..."
+
+# Test network connectivity
+echo ""
+echo "=== Testing network connectivity ==="
+echo "Testing DNS resolution..."
+if command -v getent &> /dev/null; then
+    if getent hosts archlinux.org > /dev/null 2>&1; then
+        echo "✓ DNS resolution working (archlinux.org resolved)"
+    else
+        echo "✗ DNS resolution failed (archlinux.org not resolved)"
+        echo "Current /etc/resolv.conf:"
+        cat /etc/resolv.conf 2>/dev/null || echo "resolv.conf not found"
+    fi
+else
+    echo "getent not available, trying ping..."
+    if ping -c 1 -W 2 8.8.8.8 > /dev/null 2>&1; then
+        echo "✓ Network connectivity working (ping to 8.8.8.8 successful)"
+    else
+        echo "✗ Network connectivity failed (ping to 8.8.8.8 failed)"
+    fi
+fi
+
+echo "Testing HTTP connectivity..."
+if command -v curl &> /dev/null; then
+    if curl -s --max-time 5 https://archlinux.org > /dev/null 2>&1; then
+        echo "✓ HTTP connectivity working (archlinux.org accessible)"
+    else
+        echo "✗ HTTP connectivity failed (archlinux.org not accessible)"
+        echo "Trying direct IP..."
+        if curl -s --max-time 5 https://138.201.81.199 > /dev/null 2>&1; then
+            echo "✓ Direct IP access working (DNS may be the issue)"
+        else
+            echo "✗ Direct IP access also failed (network connectivity issue)"
+        fi
+    fi
+elif command -v wget &> /dev/null; then
+    if wget -q --timeout=5 --tries=1 https://archlinux.org -O /dev/null 2>&1; then
+        echo "✓ HTTP connectivity working (archlinux.org accessible)"
+    else
+        echo "✗ HTTP connectivity failed (archlinux.org not accessible)"
+    fi
+else
+    echo "curl/wget not available for HTTP testing"
+fi
+
+echo "Network interface status:"
+ip addr show 2>/dev/null | grep -E "^[0-9]+:|inet " || ifconfig 2>/dev/null | grep -E "^[a-z]|inet " || echo "Network tools not available"
+
+echo "=== Network connectivity test completed ==="
+echo ""
+
 # Remove GNU utilities if they were accidentally installed
 # These are replaced by Rust alternatives
 GNU_PACKAGES=(
