@@ -260,6 +260,7 @@ create_rust_wrapper "htop" "btm"
 create_rust_wrapper "du" "dust"
 
 # Create aliases for interactive shells (these take precedence over wrappers)
+# Create system-wide aliases file
 cat > /etc/profile.d/rust-utils.sh << 'RUST_UTILS_EOF'
 # Rust-based utility aliases - Active by default
 # These aliases make Rust utilities the default for interactive shells
@@ -316,6 +317,47 @@ fi
 
 # Documentation (tealdeer provides 'tldr' command, no alias needed)
 RUST_UTILS_EOF
+
+# Also add aliases directly to root's .bashrc for immediate availability
+mkdir -p /root
+cat >> /root/.bashrc << 'ROOT_BASHRC_EOF'
+
+# Rust-based utility aliases
+# Source system-wide aliases
+if [ -f /etc/profile.d/rust-utils.sh ]; then
+    source /etc/profile.d/rust-utils.sh
+fi
+
+# Additional root-specific aliases
+# Ensure PATH includes /usr/local/bin for wrapper scripts
+export PATH="/usr/local/bin:$PATH"
+
+# Direct aliases for root user (redundant but ensures availability)
+if command -v rg &> /dev/null; then alias grep='rg'; fi
+if command -v fd &> /dev/null; then alias find='fd'; fi
+if command -v bat &> /dev/null; then alias cat='bat --paging=never'; alias batp='bat'; fi
+if command -v sd &> /dev/null; then alias sed='sd'; fi
+if command -v eza &> /dev/null; then
+    alias ls='eza'
+    alias ll='eza -l'
+    alias la='eza -la'
+    alias lt='eza --tree'
+    alias tree='eza --tree'
+fi
+if command -v procs &> /dev/null; then alias ps='procs'; fi
+if command -v btm &> /dev/null; then alias top='btm'; alias htop='btm'; fi
+if command -v dust &> /dev/null; then alias du='dust'; fi
+
+# Initialize zoxide if available
+if command -v zoxide &> /dev/null; then
+    eval "$(zoxide init bash)"
+fi
+
+# Initialize starship if available
+if command -v starship &> /dev/null; then
+    eval "$(starship init bash)"
+fi
+ROOT_BASHRC_EOF
 
 # Verify Rust utilities installation
 echo "Verifying Rust utilities installation..."
