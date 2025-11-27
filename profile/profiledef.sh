@@ -36,13 +36,16 @@ pacman_conf="pacman.conf"
 pacman_packages=()
 
 # Pacman packages to exclude (GNU versions replaced by Rust alternatives)
-pacman_packages_exclude=(
-    coreutils      # Replaced by uutils-coreutils
-    grep           # Replaced by ripgrep
-    findutils      # Replaced by fd
-    sed            # Replaced by sd
-    procps-ng      # Contains ps, top, etc. - Replaced by procs and bottom
-)
+# Note: We can't exclude these during initial installation as they're required dependencies
+# Instead, we install them and remove them in customize_airootfs.sh
+# pacman_packages_exclude=(
+#     coreutils      # Replaced by uutils-coreutils
+#     grep           # Replaced by ripgrep
+#     findutils      # Replaced by fd
+#     sed            # Replaced by sd
+#     procps-ng      # Contains ps, top, etc. - Replaced by procs and bottom
+# )
+pacman_packages_exclude=()
 
 # Optional: AI rootfs image type (default: squashfs)
 # airootfs_image_type="squashfs"
