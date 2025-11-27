@@ -3,19 +3,13 @@ name: Build and Release ArchLinux ISO
 on:
   push:
     tags:
-      - 'v*.*.*'  # Trigger on version tags like v1.0.0 (git-flow: only on main)
-    branches:
-      - main  # Also trigger on main branch pushes (for hotfixes)
+      - 'v*.*.*'  # Trigger on version tags like v1.0.0
   workflow_dispatch:  # Allow manual triggering
     inputs:
       version:
         description: 'Version tag (e.g., v1.0.0)'
         required: true
         default: 'v1.0.0'
-      branch:
-        description: 'Branch to build from (main for releases, main for hotfixes)'
-        required: false
-        default: 'main'
 
 env:
   ISO_NAME: arch-rs
@@ -37,13 +31,11 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VERSION="${{ github.event.inputs.version }}"
-          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/}"
           else
-            # For branch builds, use branch name and short SHA
-            BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-            SHORT_SHA="${GITHUB_SHA:0:7}"
-            VERSION="${BRANCH_NAME}-${SHORT_SHA}"
+            # Extract version from tag (e.g., v1.0.0 -> 1.0.0)
+            VERSION="${GITHUB_REF#refs/tags/}"
+            # Remove 'v' prefix if present
+            VERSION="${VERSION#v}"
           fi
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
@@ -166,7 +158,7 @@ jobs:
 
           # Ensure readable permissions (file may be owned by root from Docker)
           sudo chmod 644 "$ISO_FILE" 2>/dev/null || chmod 644 "$ISO_FILE" 2>/dev/null || true
-          
+
           FINAL_NAME=$(basename "$ISO_FILE")
           echo "path=${ISO_FILE}" >> $GITHUB_OUTPUT
           echo "name=${FINAL_NAME}" >> $GITHUB_OUTPUT
