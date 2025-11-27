@@ -124,38 +124,35 @@ fi
 
 # Validate profiledef.sh
 log_info "Validating profiledef.sh..."
-if ! grep -A 5 "pacman_packages_exclude=(" profile/profiledef.sh | grep -q "coreutils"; then
-    log_error "coreutils not excluded in profiledef.sh"
-    FAILED=1
+# Check that pacman_packages_exclude is empty or commented out
+# We allow GNU utilities during build and remove them in customize_airootfs.sh
+if grep -A 5 "pacman_packages_exclude=(" profile/profiledef.sh | grep -qE "^[[:space:]]*coreutils"; then
+    log_warn "Warning: coreutils in pacman_packages_exclude (should be empty/commented)"
 else
-    log_info "✓ coreutils excluded in profiledef.sh"
+    log_info "✓ pacman_packages_exclude is empty/commented (correct - allows build)"
 fi
-
-GNU_PACKAGES=("grep" "findutils" "sed" "procps-ng")
-for pkg in "${GNU_PACKAGES[@]}"; do
-    if ! grep -A 10 "pacman_packages_exclude=(" profile/profiledef.sh | grep -q "$pkg"; then
-        log_warn "Warning: $pkg not excluded in profiledef.sh"
-    else
-        log_info "✓ $pkg excluded in profiledef.sh"
-    fi
-done
 
 # Validate pacman.conf
 log_info "Validating pacman.conf..."
-if ! grep -q "^IgnorePkg.*coreutils" profile/pacman.conf; then
-    log_error "coreutils not in IgnorePkg in pacman.conf"
+# Check that IgnorePkg is commented out or not present
+# We allow GNU utilities during build and remove them in customize_airootfs.sh
+if grep -q "^IgnorePkg.*coreutils" profile/pacman.conf; then
+    log_error "IgnorePkg contains coreutils (should be commented out)"
+    log_error "This prevents package installation. GNU utilities are removed in customize_airootfs.sh instead."
     FAILED=1
 else
-    log_info "✓ coreutils in IgnorePkg"
+    log_info "✓ IgnorePkg is commented out or not present (correct - allows build)"
 fi
 
-for pkg in "${GNU_PACKAGES[@]}"; do
-    if ! grep -q "^IgnorePkg.*${pkg}" profile/pacman.conf; then
-        log_warn "Warning: $pkg not in IgnorePkg"
-    else
-        log_info "✓ $pkg in IgnorePkg"
-    fi
-done
+# Verify that customize_airootfs.sh handles GNU utility removal
+if grep -q "Removing GNU utilities" profile/airootfs/root/customize_airootfs.sh; then
+    log_info "✓ customize_airootfs.sh handles GNU utility removal"
+else
+    log_warn "Warning: customize_airootfs.sh may not handle GNU utility removal"
+fi
+
+# Note: We no longer check for individual packages in IgnorePkg
+# since we allow GNU utilities during build and remove them in customize_airootfs.sh
 
 # Check script permissions
 log_info "Checking script permissions..."

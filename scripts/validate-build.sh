@@ -162,11 +162,22 @@ fi
 log_info ""
 log_info "Validating pacman.conf..."
 if [ -f profile/pacman.conf ]; then
+    # Check that IgnorePkg is commented out or not present
+    # We allow GNU utilities during build and remove them in customize_airootfs.sh
     if grep -q "^IgnorePkg.*coreutils" profile/pacman.conf; then
-        log_info "✓ coreutils in IgnorePkg"
+        log_warn "IgnorePkg contains coreutils (should be commented out)"
+        log_warn "This prevents package installation. GNU utilities are removed in customize_airootfs.sh instead."
+        ((WARNINGS++)) || true
     else
-        log_error "coreutils not in IgnorePkg in pacman.conf"
-        ((ERRORS++)) || true
+        log_info "✓ IgnorePkg is commented out or not present (correct - allows build)"
+    fi
+
+    # Verify that customize_airootfs.sh handles GNU utility removal
+    if grep -q "Removing GNU utilities" profile/airootfs/root/customize_airootfs.sh; then
+        log_info "✓ customize_airootfs.sh handles GNU utility removal"
+    else
+        log_warn "customize_airootfs.sh may not handle GNU utility removal"
+        ((WARNINGS++)) || true
     fi
 fi
 
